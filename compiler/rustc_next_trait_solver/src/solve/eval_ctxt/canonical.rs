@@ -142,7 +142,7 @@ where
         // Remove any trivial region constraints once we've resolved regions
         external_constraints
             .region_constraints
-            .retain(|outlives| outlives.0.as_region().map_or(true, |re| re != outlives.1));
+            .retain(|outlives| outlives.0.as_region().is_none_or(|re| re != outlives.1));
 
         let canonical = Canonicalizer::canonicalize_response(
             self.delegate,
@@ -453,13 +453,11 @@ where
 {
     // In case any fresh inference variables have been created between `state`
     // and the previous instantiation, extend `orig_values` for it.
-    assert!(orig_values.len() <= state.value.var_values.len());
-    for &arg in &state.value.var_values.var_values.as_slice()
-        [orig_values.len()..state.value.var_values.len()]
-    {
-        let unconstrained = delegate.fresh_var_for_kind_with_span(arg, span);
-        orig_values.push(unconstrained);
-    }
+    orig_values.extend(
+        state.value.var_values.var_values.as_slice()[orig_values.len()..]
+            .iter()
+            .map(|&arg| delegate.fresh_var_for_kind_with_span(arg, span)),
+    );
 
     let instantiation =
         EvalCtxt::compute_query_response_instantiation_values(delegate, orig_values, &state, span);
